@@ -18,6 +18,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
+import androidx.appcompat.app.AppCompatDelegate
 import android.view.Gravity
 import android.widget.*
 import java.io.File
@@ -28,8 +29,9 @@ class WallpaperControlsActivity : Activity() {
     private val component by lazy { ComponentName(this, PocoLiveWallpaperService::class.java) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        setTheme(android.R.style.Theme_Material_Light_NoActionBar)
+        setTheme(android.R.style.Theme_Material_NoActionBar)
         super.onCreate(savedInstanceState)
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         showMain()
     }
 
