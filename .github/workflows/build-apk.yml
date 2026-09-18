@@ -16,7 +16,7 @@ jobs:
 
       - name: Extract project ZIP
         run: |
-          unzip -q POCO_Wallpaper_Engine_v8_Image_Video_GitHub.zip
+          unzip -q POCO_Wallpaper_Engine_v8_Image_Video_Launcher_Fixed.zip
           cd poco_wallpaper_project
           echo "PROJECT_DIR=$PWD" >> $GITHUB_ENV
 
