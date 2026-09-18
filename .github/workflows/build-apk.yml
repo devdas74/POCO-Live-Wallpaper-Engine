@@ -381,6 +381,20 @@ jobs:
           KOTLIN
           python3 - <<'PY'
           from pathlib import Path
+          for name in ("build.gradle.kts", "build.gradle"):
+              p = Path("app") / name
+              if p.exists():
+                  s = p.read_text()
+                  if 'apply(from = "signing.gradle.kts")' not in s and 'apply from: "signing.gradle.kts"' not in s:
+                      if name.endswith(".kts"):
+                          s += '\\napply(from = "signing.gradle.kts")\\n'
+                      else:
+                          s += '\\napply from: "signing.gradle.kts"\\n'
+                      p.write_text(s)
+                  break
+          PY
+          python3 - <<'PY'
+          from pathlib import Path
           import re, os
           for name in ("build.gradle.kts","build.gradle"):
               p=Path("app")/name
