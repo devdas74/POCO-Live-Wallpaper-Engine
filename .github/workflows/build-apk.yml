@@ -20,6 +20,83 @@ jobs:
           cd poco_wallpaper_project
           echo "PROJECT_DIR=$PWD" >> $GITHUB_ENV
 
+      - name: Add launcher app activity and direct wallpaper setup
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          mkdir -p app/src/main/java/com/poco/wallpaper
+          cat > app/src/main/java/com/poco/wallpaper/WallpaperControlsActivity.kt <<'KOTLIN'
+          package com.poco.wallpaper
+
+          import android.app.Activity
+          import android.app.WallpaperManager
+          import android.content.ComponentName
+          import android.content.Intent
+          import android.os.Bundle
+          import android.widget.Button
+          import android.widget.LinearLayout
+          import android.widget.TextView
+
+          class WallpaperControlsActivity : Activity() {
+              private val wallpaperComponent by lazy {
+                  ComponentName(this, PocoLiveWallpaperService::class.java)
+              }
+
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+
+                  val root = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      setPadding(48, 48, 48, 48)
+                  }
+
+                  val title = TextView(this).apply {
+                      text = "POCO Live Wallpaper Engine"
+                      textSize = 24f
+                  }
+
+                  val button = Button(this).apply {
+                      text = "Set Live Wallpaper"
+                      setOnClickListener { openWallpaperPicker() }
+                  }
+
+                  root.addView(title)
+                  root.addView(button)
+                  setContentView(root)
+
+                  if (savedInstanceState == null) {
+                      openWallpaperPicker()
+                  }
+              }
+
+              private fun openWallpaperPicker() {
+                  val intent = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply {
+                      putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, wallpaperComponent)
+                  }
+                  startActivity(intent)
+              }
+          }
+          KOTLIN
+
+          python3 - <<'PY'
+          from pathlib import Path
+          manifest = Path("app/src/main/AndroidManifest.xml")
+          text = manifest.read_text()
+          activity = '''
+              <activity
+                  android:name=".WallpaperControlsActivity"
+                  android:exported="true"
+                  android:label="POCO Live Wallpaper Engine">
+                  <intent-filter>
+                      <action android:name="android.intent.action.MAIN" />
+                      <category android:name="android.intent.category.LAUNCHER" />
+                  </intent-filter>
+              </activity>
+          '''
+          if "WallpaperControlsActivity" not in text:
+              text = text.replace("</application>", activity + "\n    </application>")
+              manifest.write_text(text)
+          PY
+
       - name: Fix Android VectorDrawable files
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
