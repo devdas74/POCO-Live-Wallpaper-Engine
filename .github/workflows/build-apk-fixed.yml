@@ -1,0 +1,62 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract project ZIP
+        run: |
+          unzip -q POCO_Wallpaper_Engine_v8_Image_Video_GitHub.zip
+          cd poco_wallpaper_project
+          echo "PROJECT_DIR=$PWD" >> $GITHUB_ENV
+
+      - name: Fix vector drawable resources
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ["app/src/main/res/drawable/ic_launcher.xml", "app/src/main/res/drawable/preview_thumbnail.xml"]:
+              p = Path(name)
+              s = p.read_text()
+              lines = []
+              for line in s.splitlines():
+                  if "<circle " in line:
+                      if "ic_launcher.xml" in name:
+                          line = '    <path android:fillColor="#FFFFFF" android:alpha="0.9" android:pathData="M82,18 C86.418,18 90,21.582 90,26 C90,30.418 86.418,34 82,34 C77.582,34 74,30.418 74,26 C74,21.582 77.582,18 82,18 Z"/>'
+                      else:
+                          line = '    <path android:fillColor="#FFFFFF" android:alpha="0.9" android:pathData="M201,38 C212.046,38 221,46.954 221,58 C221,69.046 212.046,78 201,78 C189.954,78 181,69.046 181,58 C181,46.954 189.954,38 201,38 Z"/>'
+                  lines.append(line)
+              p.write_text("\n".join(lines) + "\n")
+          PY
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.2.1'
+
+      - name: Build APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: poco-live-wallpaper-debug-apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
