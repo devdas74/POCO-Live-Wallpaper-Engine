@@ -358,6 +358,38 @@ jobs:
                       p.write_text(t)
           PY
 
+      - name: Use stable signing key and increment version
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          echo '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' | base64 -d > poco-update.jks
+          cat > signing.gradle.kts <<'KOTLIN'
+          import org.gradle.api.JavaVersion
+          android {
+              signingConfigs {
+                  create("stableDebug") {
+                      storeFile = file("poco-update.jks")
+                      storePassword = "poco-debug-2026"
+                      keyAlias = "poco"
+                      keyPassword = "poco-debug-2026"
+                  }
+              }
+              buildTypes {
+                  getByName("debug") { signingConfig = signingConfigs.getByName("stableDebug") }
+              }
+          }
+          KOTLIN
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, os
+          for name in ("build.gradle.kts","build.gradle"):
+              p=Path("app")/name
+              if p.exists():
+                  s=p.read_text()
+                  n=max(2, 100+int(os.environ.get("GITHUB_RUN_NUMBER","1")))
+                  s=re.sub(r'(versionCode\s*=\s*)\d+', r'\g<1>'+str(n), s, count=1)
+                  p.write_text(s)
+                  break
+          PY
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
