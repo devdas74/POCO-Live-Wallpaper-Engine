@@ -48,7 +48,9 @@ jobs:
               private val component by lazy { ComponentName(this, PocoLiveWallpaperService::class.java) }
 
               override fun onCreate(savedInstanceState: Bundle?) {
+                  setTheme(android.R.style.Theme_Material_Light_NoActionBar)
                   super.onCreate(savedInstanceState)
+                  window.setBackgroundDrawableResource(android.R.color.white)
                   showMain()
               }
 
@@ -124,8 +126,8 @@ jobs:
                       .putString("media_type", if (isImage) "image" else "video")
                       .putBoolean("kill_switch", false)
                       .apply()
-                  Toast.makeText(this, "Media selected", Toast.LENGTH_SHORT).show()
-                  showMain()
+                  Toast.makeText(this, "Media selected — open Apply to set it", Toast.LENGTH_SHORT).show()
+                  openWallpaperPicker()
               }
 
               private fun showSettings() {
@@ -171,8 +173,7 @@ jobs:
               private fun killEngine() {
                   prefs.edit().putBoolean("kill_switch", true).apply()
                   try { WallpaperManager.getInstance(this).clear() } catch (_: Exception) {}
-                  Toast.makeText(this, "Wallpaper engine stopped", Toast.LENGTH_SHORT).show()
-                  showMain()
+                  finishAndRemoveTask()
               }
 
               private fun restartEngine() {
