@@ -25,6 +25,7 @@ jobs:
         run: |
           bash "$GITHUB_WORKSPACE/scripts/prepare-wallpaper-project.sh"
           bash "$GITHUB_WORKSPACE/scripts/modernize-controls-ui.sh"
+          bash "$GITHUB_WORKSPACE/scripts/add-media-orientation.sh"
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
