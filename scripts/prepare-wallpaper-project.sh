@@ -150,7 +150,7 @@ class WallpaperControlsActivity : Activity() {
         val enabled = !prefs.getBoolean("kill_switch", false)
         prefs.edit().putBoolean("kill_switch", enabled).apply()
         Toast.makeText(this, if (enabled) "Wallpaper engine stopped" else "Wallpaper engine enabled", Toast.LENGTH_SHORT).show()
-        if (!enabled) applyWallpaper() else showMain()
+        showMain()
     }
 
     private fun showSettings() {
@@ -199,12 +199,14 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.os.Process
 import android.service.wallpaper.WallpaperService
+import android.view.MotionEvent
 import android.view.SurfaceHolder
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
-import java.io.File
+import kotlin.math.max
 
 class PocoLiveWallpaperService : WallpaperService() {
     override fun onCreateEngine(): Engine = PocoEngine()
@@ -215,14 +217,29 @@ class PocoLiveWallpaperService : WallpaperService() {
         private var bitmap: Bitmap? = null
         private var holderRef: SurfaceHolder? = null
         private var sensors: SensorManager? = null
+        private var sensor: Sensor? = null
         private var offsetX = 0f
         private var offsetY = 0f
+        private var basePitch = 0f
+        private var baseRoll = 0f
+        private var calibrated = false
+        private var menuOpen = false
+        private var touchEnabled = true
+        private var reverseLoop = false
+        private var batteryMode = false
+        private var targetFps = 60
+
+        override fun onCreate(surfaceHolder: SurfaceHolder) {
+            super.onCreate(surfaceHolder)
+            setTouchEventsEnabled(true)
+        }
 
         override fun onSurfaceCreated(holder: SurfaceHolder) {
             super.onSurfaceCreated(holder)
             holderRef = holder
             if (!prefs.getBoolean("kill_switch", false)) loadMedia(holder)
             registerSensors()
+            drawImage()
         }
 
         override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
@@ -231,25 +248,36 @@ class PocoLiveWallpaperService : WallpaperService() {
         }
 
         override fun onSurfaceDestroyed(holder: SurfaceHolder) {
-            unregisterSensors(); releasePlayer(); bitmap?.recycle(); bitmap = null; holderRef = null
+            unregisterSensors()
+            releasePlayer()
+            bitmap?.recycle()
+            bitmap = null
+            holderRef = null
             super.onSurfaceDestroyed(holder)
         }
 
         override fun onVisibilityChanged(visible: Boolean) {
             if (visible) {
-                if (prefs.getBoolean("kill_switch", false)) { releasePlayer(); return }
+                if (prefs.getBoolean("kill_switch", false)) {
+                    releasePlayer()
+                    return
+                }
                 if (player == null && bitmap == null) holderRef?.let { loadMedia(it) } else player?.play()
                 registerSensors()
             } else {
-                player?.pause(); unregisterSensors()
+                player?.pause()
+                unregisterSensors()
             }
         }
 
         private fun loadMedia(holder: SurfaceHolder) {
-            releasePlayer(); bitmap?.recycle(); bitmap = null
+            releasePlayer()
+            bitmap?.recycle()
+            bitmap = null
             val path = prefs.getString("media_path", null)?.let(::File) ?: return
             val type = prefs.getString("media_type", null) ?: return
             if (!path.exists()) return
+
             if (type == "image") {
                 bitmap = try { BitmapFactory.decodeFile(path.absolutePath) } catch (_: Exception) { null }
                 drawImage()
@@ -268,42 +296,189 @@ class PocoLiveWallpaperService : WallpaperService() {
         }
 
         private fun releasePlayer() {
-            player?.clearVideoSurface(); player?.release(); player = null
+            player?.clearVideoSurface()
+            player?.release()
+            player = null
         }
 
         private fun registerSensors() {
             if (!prefs.getBoolean("gyro_enabled", true) || sensors != null) return
             sensors = getSystemService(SENSOR_SERVICE) as SensorManager
-            sensors?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)?.let {
+            sensor = sensors?.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
+                ?: sensors?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+            sensor?.let {
                 sensors?.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
             }
         }
 
-        private fun unregisterSensors() { sensors?.unregisterListener(this); sensors = null }
+        private fun unregisterSensors() {
+            sensors?.unregisterListener(this)
+            sensors = null
+            sensor = null
+            calibrated = false
+        }
 
         override fun onSensorChanged(event: SensorEvent) {
             val matrix = FloatArray(9)
-            SensorManager.getRotationMatrixFromVector(matrix, event.values)
-            val sensitivity = prefs.getInt("gyro_sensitivity", 50) / 100f
-            val tx = matrix[2].coerceIn(-1f, 1f) * -55f * sensitivity
-            val ty = matrix[5].coerceIn(-1f, 1f) * -55f * sensitivity
-            offsetX += (tx - offsetX) * 0.10f; offsetY += (ty - offsetY) * 0.10f
+            if (!SensorManager.getRotationMatrixFromVector(matrix, event.values)) return
+
+            val orientation = FloatArray(3)
+            SensorManager.getOrientation(matrix, orientation)
+            val pitch = orientation[1]
+            val roll = orientation[2]
+
+            if (!calibrated) {
+                basePitch = pitch
+                baseRoll = roll
+                calibrated = true
+                return
+            }
+
+            var dPitch = pitch - basePitch
+            var dRoll = roll - baseRoll
+            val pi = Math.PI.toFloat()
+            val twoPi = (Math.PI * 2.0).toFloat()
+            while (dPitch > pi) dPitch -= twoPi
+            while (dPitch < -pi) dPitch += twoPi
+            while (dRoll > pi) dRoll -= twoPi
+            while (dRoll < -pi) dRoll += twoPi
+
+            val sensitivity = prefs.getInt("gyro_sensitivity", 50) / 50f
+            val maxOffset = 70f * sensitivity
+            val tx = (dRoll * 220f).coerceIn(-maxOffset, maxOffset)
+            val ty = (dPitch * 220f).coerceIn(-maxOffset, maxOffset)
+
+            offsetX += (tx - offsetX) * 0.16f
+            offsetY += (ty - offsetY) * 0.16f
             if (player == null) drawImage()
         }
 
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
+        override fun onTouchEvent(event: MotionEvent) {
+            if (!touchEnabled || event.action != MotionEvent.ACTION_UP) return
+
+            val w = holderRef?.surfaceFrame?.width() ?: return
+            val x = event.x
+            val y = event.y
+
+            val cx = w - 54f
+            val cy = 54f
+            if ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= 42f * 42f) {
+                menuOpen = !menuOpen
+                drawImage()
+                return
+            }
+
+            if (!menuOpen) return
+
+            val left = w - 280f
+            val right = w - 18f
+            if (x < left || x > right || y < 82f || y > 390f) return
+
+            val row = ((y - 90f) / 48f).toInt()
+            when (row) {
+                0 -> killEngine()
+                1 -> restartEngine()
+                2 -> touchEnabled = !touchEnabled
+                3 -> reverseLoop = !reverseLoop
+                4 -> batteryMode = !batteryMode
+                5 -> targetFps = if (targetFps == 60) 30 else 60
+            }
+            drawImage()
+        }
+
+        private fun killEngine() {
+            prefs.edit().putBoolean("kill_switch", true).apply()
+            menuOpen = false
+            releasePlayer()
+            bitmap?.recycle()
+            bitmap = null
+            drawImage()
+            Process.killProcess(Process.myPid())
+        }
+
+        private fun restartEngine() {
+            prefs.edit().putBoolean("kill_switch", false).apply()
+            menuOpen = false
+            holderRef?.let { loadMedia(it) }
+            calibrated = false
+            drawImage()
+        }
+
         private fun drawImage() {
-            val b = bitmap ?: return
             val h = holderRef ?: return
             val canvas: Canvas = try { h.lockCanvas() } catch (_: Exception) { null } ?: return
             try {
                 canvas.drawColor(Color.BLACK)
-                val scale = maxOf(canvas.width.toFloat() / b.width, canvas.height.toFloat() / b.height)
-                val w = b.width * scale; val ht = b.height * scale
-                val left = (canvas.width - w) / 2f + offsetX; val top = (canvas.height - ht) / 2f + offsetY
-                canvas.drawBitmap(b, null, RectF(left, top, left + w, top + ht), Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
-            } finally { h.unlockCanvasAndPost(canvas) }
+                val b = bitmap
+                if (b != null) {
+                    val scale = max(canvas.width.toFloat() / b.width, canvas.height.toFloat() / b.height)
+                    val w = b.width * scale
+                    val ht = b.height * scale
+                    val left = (canvas.width - w) / 2f + offsetX
+                    val top = (canvas.height - ht) / 2f + offsetY
+                    canvas.drawBitmap(
+                        b, null, RectF(left, top, left + w, top + ht),
+                        Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+                    )
+                }
+                drawInteractiveIsland(canvas)
+            } finally {
+                h.unlockCanvasAndPost(canvas)
+            }
+        }
+
+        private fun drawInteractiveIsland(canvas: Canvas) {
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+            val cx = canvas.width - 54f
+            val cy = 54f
+
+            paint.color = Color.argb(205, 20, 20, 20)
+            canvas.drawCircle(cx, cy, 25f, paint)
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 1.5f
+            paint.color = Color.argb(120, 255, 255, 255)
+            canvas.drawCircle(cx, cy, 25f, paint)
+
+            paint.style = Paint.Style.FILL
+            paint.color = Color.WHITE
+            canvas.drawCircle(cx - 7f, cy, 2.3f, paint)
+            canvas.drawCircle(cx, cy, 2.3f, paint)
+            canvas.drawCircle(cx + 7f, cy, 2.3f, paint)
+
+            if (!menuOpen) return
+
+            val left = canvas.width - 280f
+            val top = 82f
+            val right = canvas.width - 18f
+            val bottom = 390f
+            paint.color = Color.argb(225, 20, 20, 20)
+            canvas.drawRoundRect(RectF(left, top, right, bottom), 18f, 18f, paint)
+
+            val labels = arrayOf(
+                "KILL ENGINE",
+                "RESTART",
+                "TOUCH " + if (touchEnabled) "ON" else "OFF",
+                "LOOP " + if (reverseLoop) "REVERSE" else "NORMAL",
+                "BATTERY " + if (batteryMode) "ON" else "OFF",
+                "FPS " + targetFps
+            )
+
+            paint.textSize = 15f
+            paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
+            for (i in labels.indices) {
+                val yy = top + 31f + i * 48f
+                paint.color = if (i == 0) Color.rgb(255, 110, 110) else Color.WHITE
+                canvas.drawText(labels[i], left + 18f, yy, paint)
+                paint.color = Color.argb(35, 255, 255, 255)
+                if (i < labels.lastIndex) canvas.drawRect(left + 12f, yy + 13f, right - 12f, yy + 14f, paint)
+            }
+
+            paint.typeface = android.graphics.Typeface.DEFAULT
+            paint.textSize = 10f
+            paint.color = Color.argb(150, 255, 255, 255)
+            canvas.drawText("ENGINE RUNNING", left + 18f, bottom - 10f, paint)
         }
     }
 }
