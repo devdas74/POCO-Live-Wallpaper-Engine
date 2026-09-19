@@ -563,15 +563,16 @@ class PocoLiveWallpaperService : WallpaperService() {
             val vh = videoHeight.takeIf { it > 0 } ?: height
             val videoAspect = vw.toFloat() / vh.toFloat()
             val screenAspect = width.toFloat() / height.toFloat()
+            val overscan = 1.15f
 
             val scaleX: Float
             val scaleY: Float
             if (videoAspect > screenAspect) {
-                scaleX = videoAspect / screenAspect
-                scaleY = 1f
+                scaleX = (videoAspect / screenAspect) * overscan
+                scaleY = overscan
             } else {
-                scaleX = 1f
-                scaleY = screenAspect / videoAspect
+                scaleX = overscan
+                scaleY = (screenAspect / videoAspect) * overscan
             }
 
             val sensitivity = prefs.getInt("gyro_sensitivity", 50) / 50f
@@ -802,7 +803,7 @@ class PocoLiveWallpaperService : WallpaperService() {
                 canvas.drawColor(Color.BLACK)
                 val b = bitmap
                 if (b != null) {
-                    val scale = max(canvas.width.toFloat() / b.width, canvas.height.toFloat() / b.height)
+                    val scale = max(canvas.width.toFloat() / b.width, canvas.height.toFloat() / b.height) * 1.15f
                     val w = b.width * scale
                     val ht = b.height * scale
                     val left = (canvas.width - w) / 2f + offsetX
