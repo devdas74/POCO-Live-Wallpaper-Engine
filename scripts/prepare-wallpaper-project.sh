@@ -148,8 +148,18 @@ class WallpaperControlsActivity : Activity() {
 
     private fun toggleKillSwitch() {
         val enabled = !prefs.getBoolean("kill_switch", false)
-        prefs.edit().putBoolean("kill_switch", enabled).apply()
-        Toast.makeText(this, if (enabled) "Wallpaper engine stopped" else "Wallpaper engine enabled", Toast.LENGTH_SHORT).show()
+        prefs.edit().putBoolean("kill_switch", enabled).commit()
+        if (enabled) {
+            try {
+                val wm = WallpaperManager.getInstance(this)
+                if (wm.wallpaperInfo?.component == component) {
+                    wm.clear(WallpaperManager.FLAG_SYSTEM)
+                }
+            } catch (_: Exception) {}
+            Toast.makeText(this, "Wallpaper engine stopped", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, "Wallpaper engine enabled", Toast.LENGTH_SHORT).show()
+        }
         showMain()
     }
 
@@ -195,6 +205,8 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
+import android.app.WallpaperManager
+import android.content.ComponentName
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -252,12 +264,12 @@ class PocoLiveWallpaperService : WallpaperService() {
                 android.os.Handler(mainLooper).postDelayed({
                     if (!prefs.getBoolean("kill_switch", false)) {
                         loadMedia(holder)
-                        drawImage()
+                        if (player == null) drawImage()
                     }
                 }, 300L)
             }
             registerSensors()
-            drawImage()
+            if (player == null) drawImage()
         }
 
         override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
@@ -265,8 +277,9 @@ class PocoLiveWallpaperService : WallpaperService() {
             if (player == null) drawImage()
             android.os.Handler(mainLooper).postDelayed({
                 if (!prefs.getBoolean("kill_switch", false)) {
+                    val wasVideo = prefs.getString("media_type", null) == "video"
                     loadMedia(holder)
-                    drawImage()
+                    if (!wasVideo && player == null) drawImage()
                 }
             }, 150L)
         }
@@ -286,7 +299,15 @@ class PocoLiveWallpaperService : WallpaperService() {
                     releasePlayer()
                     return
                 }
-                if (player == null && bitmap == null) holderRef?.let { loadMedia(it) } else player?.play()
+                if (player == null && bitmap == null) {
+                    holderRef?.let {
+                        loadMedia(it)
+                        if (player == null) drawImage()
+                    }
+                } else {
+                    player?.play()
+                    if (player == null) drawImage()
+                }
                 registerSensors()
             } else {
                 player?.pause()
@@ -488,12 +509,17 @@ class PocoLiveWallpaperService : WallpaperService() {
         }
 
         private fun killEngine() {
-            prefs.edit().putBoolean("kill_switch", true).apply()
+            prefs.edit().putBoolean("kill_switch", true).commit()
             menuOpen = false
             releasePlayer()
             bitmap?.recycle()
             bitmap = null
-            drawImage()
+            try {
+                val wm = WallpaperManager.getInstance(this@PocoLiveWallpaperService)
+                if (wm.wallpaperInfo?.component == ComponentName(this@PocoLiveWallpaperService, PocoLiveWallpaperService::class.java)) {
+                    wm.clear(WallpaperManager.FLAG_SYSTEM)
+                }
+            } catch (_: Exception) {}
             Process.killProcess(Process.myPid())
         }
 
@@ -610,6 +636,7 @@ cat > app/src/main/AndroidManifest.xml <<'XML'
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-feature android:name="android.software.live_wallpaper" android:required="false" />
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
     <application android:label="POCO Live Wallpaper Engine" android:theme="@android:style/Theme.Material.NoActionBar">
         <activity android:name=".WallpaperControlsActivity" android:exported="true">
             <intent-filter>
