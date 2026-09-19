@@ -330,7 +330,8 @@ class PocoLiveWallpaperService : WallpaperService() {
 
         override fun onSensorChanged(event: SensorEvent) {
             val matrix = FloatArray(9)
-            if (!SensorManager.getRotationMatrixFromVector(matrix, event.values)) return
+            val rotationOk = SensorManager.getRotationMatrixFromVector(matrix, event.values)
+            if (rotationOk == false) return
 
             val orientation = FloatArray(3)
             SensorManager.getOrientation(matrix, orientation)
