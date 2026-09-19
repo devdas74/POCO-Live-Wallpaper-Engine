@@ -154,10 +154,26 @@ class WallpaperControlsActivity : Activity() {
     }
 
     private fun choose(type: String, request: Int) {
-        startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE); this.type = type
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-        }, request)
+        // Use the standard Android content picker. GET_CONTENT is more broadly
+        // handled by OEM/MIUI pickers than OPEN_DOCUMENT, while the selected
+        // file is copied into app storage immediately so persistable URI access
+        // is not required.
+        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            this.type = type
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        try {
+            startActivityForResult(Intent.createChooser(intent, if (request == 11) "Choose Photo" else "Choose Video"), request)
+        } catch (_: Exception) {
+            // OEMs can occasionally have no handler for the chooser. Retry
+            // directly with the content intent before reporting failure.
+            try {
+                startActivityForResult(intent, request)
+            } catch (_: Exception) {
+                Toast.makeText(this, "No file picker is available", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     @Suppress("DEPRECATION")
