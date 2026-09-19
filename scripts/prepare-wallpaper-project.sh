@@ -213,7 +213,6 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.opengl.EGL14
-import android.opengl.EGLExt
 import android.opengl.GLES11Ext
 import android.opengl.GLES20
 import android.os.Handler
@@ -434,7 +433,7 @@ class PocoLiveWallpaperService : WallpaperService() {
             val configs = arrayOfNulls<android.opengl.EGLConfig>(1)
             val num = IntArray(1)
             val attrs = intArrayOf(
-                EGL14.EGL_RENDERABLE_TYPE, EGLExt.EGL_OPENGL_ES2_BIT,
+                EGL14.EGL_RENDERABLE_TYPE, 4,
                 EGL14.EGL_SURFACE_TYPE, EGL14.EGL_WINDOW_BIT,
                 EGL14.EGL_RED_SIZE, 8,
                 EGL14.EGL_GREEN_SIZE, 8,
@@ -603,7 +602,7 @@ class PocoLiveWallpaperService : WallpaperService() {
             GLES20.glVertexAttribPointer(glPosition, 2, GLES20.GL_FLOAT, false, 0, vb)
             GLES20.glEnableVertexAttribArray(glTexCoord)
             GLES20.glVertexAttribPointer(glTexCoord, 2, GLES20.GL_FLOAT, false, 0, cb)
-            GLES20.glUniformMatrix4fv(glMvp, 1, false, IDENTITY, 0)
+            GLES20.glUniformMatrix4fv(glMvp, 1, false, identityMatrix, 0)
             GLES20.glUniformMatrix4fv(glTexMatrix, 1, false, texMatrix, 0)
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, videoTextureId)
@@ -884,14 +883,12 @@ class PocoLiveWallpaperService : WallpaperService() {
             canvas.drawText("ENGINE RUNNING", panelLeft + 16f, panelBottom - 10f, paint)
         }
 
-        companion object {
-            private val IDENTITY = floatArrayOf(
-                1f, 0f, 0f, 0f,
-                0f, 1f, 0f, 0f,
-                0f, 0f, 1f, 0f,
-                0f, 0f, 0f, 1f
-            )
-        }
+        private val identityMatrix = floatArrayOf(
+            1f, 0f, 0f, 0f,
+            0f, 1f, 0f, 0f,
+            0f, 0f, 1f, 0f,
+            0f, 0f, 0f, 1f
+        )
     }
 }
 KOTLIN
