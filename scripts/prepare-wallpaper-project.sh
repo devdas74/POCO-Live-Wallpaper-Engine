@@ -91,7 +91,7 @@ class WallpaperControlsActivity : Activity() {
                 .putString("media_path", target.absolutePath)
                 .putString("media_type", if (isImage) "image" else "video")
                 .putBoolean("kill_switch", false)
-                .apply()
+                .commit()
             Toast.makeText(this, "Media selected", Toast.LENGTH_SHORT).show()
             showMain()
         } catch (_: Exception) {
@@ -137,7 +137,7 @@ class WallpaperControlsActivity : Activity() {
         if (prefs.getString("media_path", null) == null) {
             Toast.makeText(this, "Choose a photo or video first", Toast.LENGTH_SHORT).show(); return
         }
-        prefs.edit().putBoolean("kill_switch", false).apply()
+        prefs.edit().putBoolean("kill_switch", false).commit()
         try {
             startActivity(Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, component))
         } catch (_: Exception) {
@@ -247,7 +247,15 @@ class PocoLiveWallpaperService : WallpaperService() {
         override fun onSurfaceCreated(holder: SurfaceHolder) {
             super.onSurfaceCreated(holder)
             holderRef = holder
-            if (!prefs.getBoolean("kill_switch", false)) loadMedia(holder)
+            if (!prefs.getBoolean("kill_switch", false)) {
+                loadMedia(holder)
+                android.os.Handler(mainLooper).postDelayed({
+                    if (!prefs.getBoolean("kill_switch", false)) {
+                        loadMedia(holder)
+                        drawImage()
+                    }
+                }, 300L)
+            }
             registerSensors()
             drawImage()
         }
@@ -255,6 +263,12 @@ class PocoLiveWallpaperService : WallpaperService() {
         override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
             super.onSurfaceChanged(holder, format, width, height)
             if (player == null) drawImage()
+            android.os.Handler(mainLooper).postDelayed({
+                if (!prefs.getBoolean("kill_switch", false)) {
+                    loadMedia(holder)
+                    drawImage()
+                }
+            }, 150L)
         }
 
         override fun onSurfaceDestroyed(holder: SurfaceHolder) {
