@@ -146,10 +146,47 @@ class WallpaperControlsActivity : Activity() {
             if(killed) "▶" else "■") { toggleKillSwitch() })
 
         root.addView(Space(this), LinearLayout.LayoutParams(1, dp(22)))
-        root.addView(label("GitHub: devdas74", 11f, Color.rgb(115,115,125)).apply {
-            gravity = Gravity.CENTER
-            setPadding(0, dp(4), 0, dp(8))
-        })
+
+        // Modern GitHub credit: avatar + profile name + external-link affordance.
+        val github = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            minimumHeight = dp(64)
+            setPadding(dp(12), dp(8), dp(14), dp(8))
+            background = bg(Color.rgb(23,23,27), 20f)
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/devdas74")))
+                } catch (_: Exception) {
+                    Toast.makeText(this@WallpaperControlsActivity, "Could not open GitHub", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        val avatar = ImageView(this).apply {
+            setImageResource(com.poco.wallpaper.R.drawable.github_avatar)
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            background = bg(Color.rgb(47,47,53), 32f)
+            clipToOutline = true
+            outlineProvider = object : android.view.ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: android.graphics.Outline) {
+                    outline.setOval(0, 0, view.width, view.height)
+                }
+            }
+            contentDescription = "GitHub profile picture"
+        }
+        github.addView(avatar, LinearLayout.LayoutParams(dp(42), dp(42)).apply { marginEnd = dp(12) })
+
+        github.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(label("devdas74", 14f, Color.WHITE, true))
+            addView(label("GitHub profile", 11f, Color.rgb(145,145,154)).apply { setPadding(0, dp(3), 0, 0) })
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        github.addView(label("↗", 20f, Color.rgb(165,165,174)))
+        root.addView(github)
+
         setContentView(scroll)
     }
 
@@ -276,6 +313,12 @@ class WallpaperControlsActivity : Activity() {
 KOTLIN
 
 mkdir -p app/src/main/res/drawable
+
+# Embed the GitHub profile avatar at build time so the app does not need
+# runtime network access just to display the credit.
+curl -L --fail --silent --show-error --max-time 20 \
+  "https://github.com/devdas74.png?size=128" \
+  -o app/src/main/res/drawable/github_avatar.png
 
 cat > app/src/main/res/drawable/ic_launcher.xml <<'XML'
 <?xml version="1.0" encoding="utf-8"?>
