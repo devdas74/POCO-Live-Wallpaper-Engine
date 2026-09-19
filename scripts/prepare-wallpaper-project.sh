@@ -284,24 +284,61 @@ class PocoLiveWallpaperService : WallpaperService() {
             releasePlayer()
             bitmap?.recycle()
             bitmap = null
-            val path = prefs.getString("media_path", null)?.let(::File) ?: return
-            val type = prefs.getString("media_type", null) ?: return
-            if (!path.exists()) return
+
+            val storedPath = prefs.getString("media_path", null)
+            val storedUri = prefs.getString("media_uri", null)
+            val type = prefs.getString("media_type", null)
+
+            if (type == null) {
+                drawImage()
+                return
+            }
 
             if (type == "image") {
-                bitmap = try { BitmapFactory.decodeFile(path.absolutePath) } catch (_: Exception) { null }
+                bitmap = try {
+                    val path = storedPath?.let(::File)
+                    if (path != null && path.exists()) {
+                        BitmapFactory.decodeFile(path.absolutePath)
+                    } else if (!storedUri.isNullOrEmpty()) {
+                        contentResolver.openInputStream(android.net.Uri.parse(storedUri))?.use {
+                            BitmapFactory.decodeStream(it)
+                        }
+                    } else {
+                        null
+                    }
+                } catch (_: Exception) {
+                    null
+                }
                 drawImage()
-            } else {
+                return
+            }
+
+            if (type == "video") {
+                val mediaUri = when {
+                    !storedPath.isNullOrEmpty() && File(storedPath).exists() ->
+                        android.net.Uri.fromFile(File(storedPath))
+                    !storedUri.isNullOrEmpty() ->
+                        android.net.Uri.parse(storedUri)
+                    else -> null
+                }
+
+                if (mediaUri == null) {
+                    drawImage()
+                    return
+                }
+
                 player = try {
                     ExoPlayer.Builder(this@PocoLiveWallpaperService).build().apply {
-                        setMediaItem(MediaItem.fromUri(path.toURI().toString()))
+                        setMediaItem(MediaItem.fromUri(mediaUri))
                         repeatMode = Player.REPEAT_MODE_ONE
                         volume = 0f
                         setVideoSurfaceHolder(holder)
                         prepare()
                         playWhenReady = true
                     }
-                } catch (_: Exception) { null }
+                } catch (_: Exception) {
+                    null
+                }
             }
         }
 
