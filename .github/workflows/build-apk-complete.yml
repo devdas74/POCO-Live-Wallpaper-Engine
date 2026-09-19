@@ -1,4 +1,4 @@
-name: Build APK (complete unsigned)
+name: Build APK (unsigned debug only)
 
 on:
   push:
