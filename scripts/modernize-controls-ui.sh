@@ -136,7 +136,7 @@ class WallpaperControlsActivity : Activity() {
         root.addView(motion)
 
         root.addView(section("Engine"))
-        root.addView(mainButton("Play as Background") { applyWallpaper() })
+        root.addView(mainButton("Set Home Screen Wallpaper") { applyWallpaper() })
         root.addView(Space(this), LinearLayout.LayoutParams(1, dp(10)))
         root.addView(row("Settings", "Fine-tune motion controls", "⚙") { showSettings() })
         root.addView(Space(this), LinearLayout.LayoutParams(1, dp(8)))
@@ -191,10 +191,23 @@ class WallpaperControlsActivity : Activity() {
     }
 
     private fun applyWallpaper() {
-        if(prefs.getString("media_path", null) == null) { Toast.makeText(this, "Choose a photo or video first", Toast.LENGTH_SHORT).show(); return }
+        if(prefs.getString("media_path", null) == null) {
+            Toast.makeText(this, "Choose a photo or video first", Toast.LENGTH_SHORT).show()
+            return
+        }
         prefs.edit().putBoolean("kill_switch", false).commit()
-        try { startActivity(Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, component)) }
-        catch(_: Exception) { try { startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER)) } catch(_: Exception) { Toast.makeText(this, "Live wallpaper picker is not available", Toast.LENGTH_LONG).show() } }
+
+        // Launch only the preview for this wallpaper service. Do not fall back
+        // to the generic live-wallpaper chooser, which can expose unrelated
+        // Home/Lock-screen choices on OEM wallpaper UIs.
+        try {
+            val intent = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply {
+                putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, component)
+            }
+            startActivity(intent)
+        } catch (_: Exception) {
+            Toast.makeText(this, "Live wallpaper preview is not available", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun toggleKillSwitch() {
