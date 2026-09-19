@@ -39,6 +39,16 @@ class WallpaperControlsActivity : Activity() {
         showMain()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Android's live-wallpaper preview can return to this Activity with
+        // its previous view hierarchy detached/invalidated. Rebuild it on
+        // resume so Back never leaves a blank/unresponsive controls screen.
+        window.decorView.post {
+            if (!isFinishing && !isDestroyed) showMain()
+        }
+    }
+
     private fun section(s: String) = label(s.uppercase(), 11f, Color.rgb(145,145,154), true).apply {
         letterSpacing = .08f
         setPadding(dp(3), dp(22), dp(3), dp(9))
@@ -213,3 +223,32 @@ class WallpaperControlsActivity : Activity() {
     }
 }
 KOTLIN
+
+mkdir -p app/src/main/res/drawable
+
+cat > app/src/main/res/drawable/ic_launcher.xml <<'XML'
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#101014"
+        android:pathData="M54,4A50,50 0,1 0,54 104A50,50 0,1 0,54 4" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,34L76,34A8,8 0,0 1,84 42L84,66A8,8 0,0 1,76 74L32,74A8,8 0,0 1,24 66L24,42A8,8 0,0 1,32 34M39,44L39,64L57,54Z" />
+</vector>
+XML
+
+python3 - <<'PY'
+from pathlib import Path
+p = Path("app/src/main/AndroidManifest.xml")
+s = p.read_text()
+s = s.replace(
+    '<application android:label="POCO Live Wallpaper Engine" android:theme="@android:style/Theme.Material.NoActionBar">',
+    '<application android:label="POCO Live Wallpaper Engine" android:icon="@drawable/ic_launcher" android:roundIcon="@drawable/ic_launcher" android:theme="@android:style/Theme.Material.NoActionBar">'
+)
+p.write_text(s)
+PY
