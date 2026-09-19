@@ -387,9 +387,9 @@ jobs:
                   s = p.read_text()
                   if 'apply(from = "signing.gradle.kts")' not in s and 'apply from: "signing.gradle.kts"' not in s:
                       if name.endswith(".kts"):
-                          s += '\\napply(from = "signing.gradle.kts")\\n'
+                          s += '\napply(from = "signing.gradle.kts")\n'
                       else:
-                          s += '\\napply from: "signing.gradle.kts"\\n'
+                          s += '\napply from: "signing.gradle.kts"\n'
                       p.write_text(s)
                   break
           PY
