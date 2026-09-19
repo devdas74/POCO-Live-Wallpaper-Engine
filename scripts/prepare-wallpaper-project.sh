@@ -228,6 +228,15 @@ class PocoLiveWallpaperService : WallpaperService() {
         private var reverseLoop = false
         private var batteryMode = false
         private var targetFps = 60
+        private var islandOpen = false
+        private var islandLeft = -1f
+        private var islandTop = -1f
+        private var draggingIsland = false
+        private var dragMoved = false
+        private var dragStartX = 0f
+        private var dragStartY = 0f
+        private var islandStartLeft = 0f
+        private var islandStartTop = 0f
 
         override fun onCreate(surfaceHolder: SurfaceHolder) {
             super.onCreate(surfaceHolder)
@@ -356,36 +365,74 @@ class PocoLiveWallpaperService : WallpaperService() {
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
         override fun onTouchEvent(event: MotionEvent) {
-            if (!touchEnabled || event.action != MotionEvent.ACTION_UP) return
+            if (!touchEnabled) return
 
             val w = holderRef?.surfaceFrame?.width() ?: return
-            val x = event.x
-            val y = event.y
+            val h = holderRef?.surfaceFrame?.height() ?: return
 
-            val cx = w - 54f
-            val cy = 54f
-            if ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= 42f * 42f) {
-                menuOpen = !menuOpen
-                drawImage()
-                return
+            if (islandLeft < 0f) {
+                islandLeft = w - 66f
+                islandTop = 18f
             }
 
-            if (!menuOpen) return
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    val hitRight = islandLeft + if (islandOpen) 76f else 52f
+                    val hitBottom = islandTop + if (islandOpen) 430f else 38f
+                    if (event.x < islandLeft || event.x > hitRight || event.y < islandTop || event.y > hitBottom) return
+                    draggingIsland = true
+                    dragMoved = false
+                    dragStartX = event.x
+                    dragStartY = event.y
+                    islandStartLeft = islandLeft
+                    islandStartTop = islandTop
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (!draggingIsland) return
+                    val dx = event.x - dragStartX
+                    val dy = event.y - dragStartY
+                    if (kotlin.math.abs(dx) + kotlin.math.abs(dy) > 8f) dragMoved = true
+                    if (dragMoved) {
+                        islandLeft = (islandStartLeft + dx).coerceIn(4f, (w - 80f).coerceAtLeast(4f))
+                        islandTop = (islandStartTop + dy).coerceIn(4f, (h - 50f).coerceAtLeast(4f))
+                        drawImage()
+                    }
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!draggingIsland) return
+                    draggingIsland = false
+                    if (dragMoved) {
+                        prefs.edit().putFloat("island_left", islandLeft).putFloat("island_top", islandTop).apply()
+                        return
+                    }
 
-            val left = w - 280f
-            val right = w - 18f
-            if (x < left || x > right || y < 82f || y > 390f) return
+                    val pillRight = islandLeft + if (islandOpen) 76f else 52f
+                    val pillBottom = islandTop + 38f
+                    if (event.x >= islandLeft && event.x <= pillRight && event.y >= islandTop && event.y <= pillBottom) {
+                        islandOpen = !islandOpen
+                        drawImage()
+                        return
+                    }
 
-            val row = ((y - 90f) / 48f).toInt()
-            when (row) {
-                0 -> killEngine()
-                1 -> restartEngine()
-                2 -> touchEnabled = !touchEnabled
-                3 -> reverseLoop = !reverseLoop
-                4 -> batteryMode = !batteryMode
-                5 -> targetFps = if (targetFps == 60) 30 else 60
+                    if (!islandOpen) return
+                    val panelTop = islandTop + 46f
+                    val panelBottom = panelTop + 348f
+                    val panelLeft = islandLeft + 52f - 250f
+                    val panelRight = islandLeft + 52f
+                    if (event.x < panelLeft || event.x > panelRight || event.y < panelTop || event.y > panelBottom) return
+
+                    val row = ((event.y - panelTop - 28f) / 48f).toInt()
+                    when (row) {
+                        0 -> killEngine()
+                        1 -> restartEngine()
+                        2 -> touchEnabled = !touchEnabled
+                        3 -> reverseLoop = !reverseLoop
+                        4 -> batteryMode = !batteryMode
+                        5 -> targetFps = if (targetFps == 60) 30 else 60
+                    }
+                    drawImage()
+                }
             }
-            drawImage()
         }
 
         private fun killEngine() {
@@ -431,30 +478,49 @@ class PocoLiveWallpaperService : WallpaperService() {
 
         private fun drawInteractiveIsland(canvas: Canvas) {
             val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-            val cx = canvas.width - 54f
-            val cy = 54f
+            if (islandLeft < 0f) {
+                islandLeft = canvas.width - 66f
+                islandTop = 18f
+                val savedLeft = prefs.getFloat("island_left", islandLeft)
+                val savedTop = prefs.getFloat("island_top", islandTop)
+                islandLeft = savedLeft.coerceIn(4f, (canvas.width - 80f).coerceAtLeast(4f))
+                islandTop = savedTop.coerceIn(4f, (canvas.height - 50f).coerceAtLeast(4f))
+            }
 
-            paint.color = Color.argb(205, 20, 20, 20)
-            canvas.drawCircle(cx, cy, 25f, paint)
+            val pillWidth = if (islandOpen) 76f else 52f
+            val pill = RectF(islandLeft, islandTop, islandLeft + pillWidth, islandTop + 38f)
+            paint.color = Color.argb(215, 8, 8, 8)
+            canvas.drawRoundRect(pill, 20f, 20f, paint)
+
             paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 1.5f
-            paint.color = Color.argb(120, 255, 255, 255)
-            canvas.drawCircle(cx, cy, 25f, paint)
-
+            paint.strokeWidth = 1.2f
+            paint.color = Color.argb(100, 255, 255, 255)
+            canvas.drawRoundRect(pill, 20f, 20f, paint)
             paint.style = Paint.Style.FILL
+
             paint.color = Color.WHITE
-            canvas.drawCircle(cx - 7f, cy, 2.3f, paint)
-            canvas.drawCircle(cx, cy, 2.3f, paint)
-            canvas.drawCircle(cx + 7f, cy, 2.3f, paint)
+            paint.textSize = 21f
+            paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
+            val glyph = if (islandOpen) "≡" else "≡"
+            canvas.drawText(glyph, islandLeft + pillWidth / 2f - 7f, islandTop + 27f, paint)
 
-            if (!menuOpen) return
+            if (!islandOpen) return
 
-            val left = canvas.width - 280f
-            val top = 82f
-            val right = canvas.width - 18f
-            val bottom = 390f
-            paint.color = Color.argb(225, 20, 20, 20)
-            canvas.drawRoundRect(RectF(left, top, right, bottom), 18f, 18f, paint)
+            val panelRight = islandLeft + 52f
+            val panelLeft = panelRight - 250f
+            val panelTop = islandTop + 46f
+            val panelBottom = panelTop + 348f
+            paint.color = Color.argb(232, 16, 16, 16)
+            canvas.drawRoundRect(RectF(panelLeft, panelTop, panelRight, panelBottom), 20f, 20f, paint)
+
+            paint.textSize = 14f
+            paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
+            paint.color = Color.WHITE
+            canvas.drawText("Wallpaper Engine", panelLeft + 14f, panelTop + 24f, paint)
+            paint.textSize = 9f
+            paint.typeface = android.graphics.Typeface.DEFAULT
+            paint.color = Color.argb(145, 255, 255, 255)
+            canvas.drawText("Drag the Island • tap ≡ to close", panelLeft + 14f, panelTop + 39f, paint)
 
             val labels = arrayOf(
                 "KILL ENGINE",
@@ -464,21 +530,19 @@ class PocoLiveWallpaperService : WallpaperService() {
                 "BATTERY " + if (batteryMode) "ON" else "OFF",
                 "FPS " + targetFps
             )
-
-            paint.textSize = 15f
+            paint.textSize = 13f
             paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
             for (i in labels.indices) {
-                val yy = top + 31f + i * 48f
+                val yy = panelTop + 67f + i * 48f
                 paint.color = if (i == 0) Color.rgb(255, 110, 110) else Color.WHITE
-                canvas.drawText(labels[i], left + 18f, yy, paint)
+                canvas.drawText(labels[i], panelLeft + 16f, yy, paint)
                 paint.color = Color.argb(35, 255, 255, 255)
-                if (i < labels.lastIndex) canvas.drawRect(left + 12f, yy + 13f, right - 12f, yy + 14f, paint)
+                if (i < labels.lastIndex) canvas.drawRect(panelLeft + 12f, yy + 12f, panelRight - 12f, yy + 13f, paint)
             }
-
             paint.typeface = android.graphics.Typeface.DEFAULT
-            paint.textSize = 10f
+            paint.textSize = 9f
             paint.color = Color.argb(150, 255, 255, 255)
-            canvas.drawText("ENGINE RUNNING", left + 18f, bottom - 10f, paint)
+            canvas.drawText("ENGINE RUNNING", panelLeft + 16f, panelBottom - 10f, paint)
         }
     }
 }
