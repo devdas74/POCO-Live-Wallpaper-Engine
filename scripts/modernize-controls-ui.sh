@@ -144,6 +144,12 @@ class WallpaperControlsActivity : Activity() {
         root.addView(row(if(killed) "Enable Wallpaper Engine" else "Kill Switch",
             if(killed) "Wallpaper engine is stopped" else "Immediately stop the active engine",
             if(killed) "▶" else "■") { toggleKillSwitch() })
+
+        root.addView(Space(this), LinearLayout.LayoutParams(1, dp(22)))
+        root.addView(label("GitHub: devdas74", 11f, Color.rgb(115,115,125)).apply {
+            gravity = Gravity.CENTER
+            setPadding(0, dp(4), 0, dp(8))
+        })
         setContentView(scroll)
     }
 
@@ -191,22 +197,38 @@ class WallpaperControlsActivity : Activity() {
     }
 
     private fun applyWallpaper() {
-        if(prefs.getString("media_path", null) == null) {
+        val path = prefs.getString("media_path", null)?.let(::File)
+        if (path == null || !path.exists()) {
             Toast.makeText(this, "Choose a photo or video first", Toast.LENGTH_SHORT).show()
             return
         }
+
         prefs.edit().putBoolean("kill_switch", false).commit()
 
-        // Launch only the preview for this wallpaper service. Do not fall back
-        // to the generic live-wallpaper chooser, which can expose unrelated
-        // Home/Lock-screen choices on OEM wallpaper UIs.
+        val preview = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply {
+            putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, component)
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+
         try {
-            val intent = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply {
-                putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, component)
+            // Ask Android/MIUI to open the preview for this exact service.
+            // This is the standard API for a specific live-wallpaper preview.
+            if (packageManager.resolveActivity(preview, 0) != null) {
+                startActivityForResult(preview, 100)
+                return
             }
-            startActivity(intent)
-        } catch (_: Exception) {
-            Toast.makeText(this, "Live wallpaper preview is not available", Toast.LENGTH_LONG).show()
+
+            // Some OEM builds do not expose ACTION_CHANGE_LIVE_WALLPAPER.
+            // Fall back only when that specific preview action is unavailable.
+            val chooser = Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER)
+            if (packageManager.resolveActivity(chooser, 0) != null) {
+                Toast.makeText(this, "Opening live wallpaper picker…", Toast.LENGTH_SHORT).show()
+                startActivityForResult(chooser, 101)
+            } else {
+                Toast.makeText(this, "Live wallpaper setup is not available on this device", Toast.LENGTH_LONG).show()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Could not open live wallpaper setup", Toast.LENGTH_LONG).show()
         }
     }
 
