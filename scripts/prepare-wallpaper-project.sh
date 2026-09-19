@@ -710,14 +710,14 @@ class PocoLiveWallpaperService : WallpaperService() {
             val h = holderRef?.surfaceFrame?.height() ?: return
 
             if (islandLeft < 0f) {
-                islandLeft = w - 66f
-                islandTop = 18f
+                islandLeft = w - 116f
+                islandTop = 56f
             }
 
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    val hitRight = islandLeft + if (islandOpen) 76f else 52f
-                    val hitBottom = islandTop + if (islandOpen) 430f else 38f
+                    val hitRight = islandLeft + if (islandOpen) 76f else 104f
+                    val hitBottom = islandTop + if (islandOpen) 430f else 76f
                     if (event.x < islandLeft || event.x > hitRight || event.y < islandTop || event.y > hitBottom) return
                     draggingIsland = true
                     dragMoved = false
@@ -732,8 +732,8 @@ class PocoLiveWallpaperService : WallpaperService() {
                     val dy = event.y - dragStartY
                     if (kotlin.math.abs(dx) + kotlin.math.abs(dy) > 8f) dragMoved = true
                     if (dragMoved) {
-                        islandLeft = (islandStartLeft + dx).coerceIn(4f, (w - 80f).coerceAtLeast(4f))
-                        islandTop = (islandStartTop + dy).coerceIn(4f, (h - 50f).coerceAtLeast(4f))
+                        islandLeft = (islandStartLeft + dx).coerceIn(4f, (w - 116f).coerceAtLeast(4f))
+                        islandTop = (islandStartTop + dy).coerceIn(4f, (h - 76f).coerceAtLeast(4f))
                         if (player == null) drawImage()
                     }
                 }
@@ -745,8 +745,8 @@ class PocoLiveWallpaperService : WallpaperService() {
                         return
                     }
 
-                    val pillRight = islandLeft + if (islandOpen) 76f else 52f
-                    val pillBottom = islandTop + 38f
+                    val pillRight = islandLeft + if (islandOpen) 76f else 104f
+                    val pillBottom = islandTop + if (islandOpen) 38f else 76f
                     if (event.x >= islandLeft && event.x <= pillRight && event.y >= islandTop && event.y <= pillBottom) {
                         islandOpen = !islandOpen
                         if (player == null) drawImage()
@@ -822,27 +822,28 @@ class PocoLiveWallpaperService : WallpaperService() {
         private fun drawInteractiveIsland(canvas: Canvas) {
             val paint = Paint(Paint.ANTI_ALIAS_FLAG)
             if (islandLeft < 0f) {
-                islandLeft = canvas.width - 66f
-                islandTop = 18f
+                islandLeft = canvas.width - 116f
+                islandTop = 56f
                 val savedLeft = prefs.getFloat("island_left", islandLeft)
                 val savedTop = prefs.getFloat("island_top", islandTop)
-                islandLeft = savedLeft.coerceIn(4f, (canvas.width - 80f).coerceAtLeast(4f))
-                islandTop = savedTop.coerceIn(4f, (canvas.height - 50f).coerceAtLeast(4f))
+                islandLeft = savedLeft.coerceIn(4f, (canvas.width - 116f).coerceAtLeast(4f))
+                islandTop = savedTop.coerceIn(4f, (canvas.height - 76f).coerceAtLeast(4f))
             }
 
-            val pillWidth = if (islandOpen) 76f else 52f
-            val pill = RectF(islandLeft, islandTop, islandLeft + pillWidth, islandTop + 38f)
+            val pillWidth = if (islandOpen) 76f else 104f
+            val pillHeight = if (islandOpen) 38f else 76f
+            val pill = RectF(islandLeft, islandTop, islandLeft + pillWidth, islandTop + pillHeight)
             paint.color = Color.argb(215, 8, 8, 8)
-            canvas.drawRoundRect(pill, 20f, 20f, paint)
+            canvas.drawRoundRect(pill, 38f, 38f, paint)
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = 1.2f
             paint.color = Color.argb(100, 255, 255, 255)
-            canvas.drawRoundRect(pill, 20f, 20f, paint)
+            canvas.drawRoundRect(pill, 38f, 38f, paint)
             paint.style = Paint.Style.FILL
             paint.color = Color.WHITE
             paint.textSize = 21f
             paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
-            canvas.drawText("≡", islandLeft + pillWidth / 2f - 7f, islandTop + 27f, paint)
+            canvas.drawText("≡", islandLeft + pillWidth / 2f - 10f, islandTop + 52f, paint)
 
             if (!islandOpen) return
             val panelRight = islandLeft + 52f
